@@ -1,111 +1,120 @@
 import os
 import zipfile
-import tkinter as tk
-from tkinter import ttk, filedialog
-from ttkthemes import ThemedTk
 import threading
+from javax.swing import (JFrame, JButton, JLabel, JTextField,
+                         JComboBox, JProgressBar, JOptionPane, JFileChooser, ImageIcon)
+from java.awt import GridBagLayout, GridBagConstraints, Insets
+from javax.imageio import ImageIO
+from java.io import File
 
-def compress_folder(source_folder, destination_folder, zip_filename, progress_bar, compress_button):
+# Get the directory of the script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+def compress_folder(source_folder, destination_folder, zip_filename):
     try:
         total_files = sum(1 for root, dirs, files in os.walk(source_folder) for file in files)
-        progress_bar['maximum'] = total_files
-        progress = 0
+        progress_bar.setMaximum(total_files)
+        progress_bar.setValue(0)
 
         with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            progress = 0
             for root, dirs, files in os.walk(source_folder):
                 for file in files:
                     file_path = os.path.join(root, file)
                     archive_name = os.path.relpath(file_path, source_folder)
                     zipf.write(file_path, archive_name)
                     progress += 1
-                    progress_bar['value'] = progress
-        print(f'Successfully compressed files to {zip_filename}')
+                    progress_bar.setValue(progress)
+
+        JOptionPane.showMessageDialog(frame, "Successfully compressed files to " + zip_filename)
 
     except Exception as e:
-        print(f'Error: {str(e)}')
+        JOptionPane.showMessageDialog(frame, "Error: " + str(e))
 
     finally:
-        compress_button.config(state='normal')
+        compress_button.setEnabled(True)
 
-# Function to add a new file path to the Combobox and save it to the text file
-def add_file_path():
-    new_path = filedialog.askdirectory()
-    if new_path:
-        source_paths_combobox['values'] += (new_path,)
-        with open('_internal/file_paths.txt', 'a') as file:
-            file.write(new_path + '\n')
-
-# Function to add a new destination file path to the Combobox and save it to the text file
-def add_file_path2():
-    new_path = filedialog.askdirectory()
-    if new_path:
-        destination_paths_combobox['values'] += (new_path,)
-        with open('_internal/destination_folder.txt', 'a') as file:
-            file.write(new_path + '\n')
-
-# Function to set the destination folder and trigger the compression
-def set_destination_and_compress():
-    selected_folder_value = source_paths_combobox.get()
-    with open('_internal/destination_folder.txt', 'r') as dest_file:
-        selected_destination_value = dest_file.read().strip()
+def set_destination_and_compress(event):
+    selected_folder_value = source_paths_combobox.getSelectedItem()
+    selected_destination_value = destination_paths_combobox.getSelectedItem()
     if selected_folder_value and selected_destination_value:
-        # Create a folder to store the compressed file
         zip_filename = os.path.join(selected_destination_value, 'Textures.zip')
+        compress_button.setEnabled(False)
+        threading.Thread(target=compress_folder, args=(selected_folder_value, selected_destination_value, zip_filename)).start()
 
-        # Create and configure the progress bar
-        progress_bar = ttk.Progressbar(root, mode='determinate', length=200)
-        progress_bar.grid(row=4, columnspan=2, pady=10)
+def add_file_path(combobox):
+    file_chooser = JFileChooser()
+    file_chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY)
+    result = file_chooser.showOpenDialog(frame)
+    if result == JFileChooser.APPROVE_OPTION:
+        selected_folder = file_chooser.getSelectedFile().getPath()
+        combobox.addItem(selected_folder)
 
-        # Disable the "Save and Compress" button during compression
-        compress_button['state'] = 'disabled'
+# Search for PNG file in the directory and set it as app icon
+def set_icon_from_png(directory):
+    for file_name in os.listdir(directory):
+        if file_name.lower().endswith('.png'):
+            icon_path = os.path.join(directory, file_name)
+            icon_image = ImageIO.read(File(icon_path))
+            frame.setIconImage(icon_image)
+            break
 
-        # Start a new thread for compression
-        threading.Thread(target=compress_folder, args=(selected_folder_value, selected_destination_value, zip_filename, progress_bar, compress_button)).start()
+# Create the main window
+frame = JFrame("Texture Packer")
+frame.setSize(425, 350)
+frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE)
+frame.setLayout(GridBagLayout())
 
-# Create the main window with a themed tkinter
-root = ThemedTk(theme="arc")  # You can change "arc" to other themes
+# Set app icon from PNG file in the directory
+icon_directory = os.path.join(script_dir, "_internal")
+set_icon_from_png(icon_directory)
 
-root.title("Texture Packer")
-root.geometry("325x250")  # Larger window to accommodate the progress bar
-# root.iconbitmap("icon.ico")
-root.config(bg="#26242f") 
+# Create labels and comboboxes
+source_label = JLabel("Source Folder:")
+destination_label = JLabel("Destination Folder:")
+source_paths_combobox = JComboBox(["Select a source folder"])
+destination_paths_combobox = JComboBox(["Select a destination folder"])
 
-# Create a Combobox for source file paths with a larger font
-source_paths_combobox = ttk.Combobox(root, values=["Select a source folder"], font=("Arial", 14))
-source_paths_combobox.set("Select a source folder")
+# Create buttons
+new_button = JButton("New Source", actionPerformed=lambda event: add_file_path(source_paths_combobox))
+new_button2 = JButton("New Destination", actionPerformed=lambda event: add_file_path(destination_paths_combobox))
+compress_button = JButton("Save and Compress", actionPerformed=set_destination_and_compress)
 
-# Load existing source file paths
-with open('_internal/file_paths.txt', 'r') as file:
-    paths = [line.strip() for line in file]
-    source_paths_combobox['values'] += tuple(paths)
+# Create and configure the progress bar
+progress_bar = JProgressBar(0, 100)
 
-# Create a Combobox for destination file paths with a larger font
-destination_paths_combobox = ttk.Combobox(root, values=["Select a destination folder"], font=("Arial", 14))
-destination_paths_combobox.set("Select a destination folder")
+# Add components to the main window
+constraints = GridBagConstraints()
+constraints.fill = GridBagConstraints.HORIZONTAL
+constraints.weightx = 1
+constraints.gridx = 0
+constraints.gridy = 0
+constraints.insets = Insets(10, 10, 10, 10)  # Add top and bottom margins
+frame.add(new_button, constraints)
 
-# Load existing destination file paths
-with open('_internal/destination_folder.txt', 'r') as dest_file:
-    dest_folder = dest_file.read().strip()
-    destination_paths_combobox['values'] += (dest_folder,)
+constraints.gridx = 1
+frame.add(new_button2, constraints)
 
-# Create a frame to center the buttons
-button_frame = ttk.Frame(root)
-button_frame.grid(row=0, column=0, pady=20)   # Use grid for better control
+constraints.gridy = 1
+constraints.gridx = 0
+frame.add(source_label, constraints)
 
-# Create the buttons with a larger font
-new_button = ttk.Button(button_frame, text="New Source", command=add_file_path, style="TButton", width=20)
-new_button2 = ttk.Button(button_frame, text="New Destination", command=add_file_path2, style="TButton", width=20)
+constraints.gridx = 1
+frame.add(destination_label, constraints)
 
-# Use grid to center the buttons
-new_button.grid(row=0, column=0, padx=10)  # Larger horizontal spacing
-new_button2.grid(row=0, column=1, padx=10)  # Position the second button in the same row but in the second column
+constraints.gridy = 2
+constraints.gridwidth = 1
+frame.add(destination_paths_combobox, constraints)
 
-source_paths_combobox.grid(row=1, column=0, columnspan=2, padx=10, pady=10)
-destination_paths_combobox.grid(row=2, column=0, columnspan=2, padx=10, pady=10)
+constraints.gridx = 0
+frame.add(source_paths_combobox, constraints)
 
-# Create the "Save and Compress" button
-compress_button = ttk.Button(root, text="Save and Compress", command=set_destination_and_compress, style="TButton", width=20)
-compress_button.grid(row=3, column=0, columnspan=2, pady=10)
+constraints.gridwidth = 2
+constraints.gridy = 3
+constraints.insets = Insets(20, 10, 0, 10)  # Add only bottom margin
+frame.add(compress_button, constraints)
 
-# Start the main application loop
-root.mainloop()
+constraints.gridy = 4
+frame.add(progress_bar, constraints)
+
+frame.setVisible(True)
