@@ -6,6 +6,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipEntry;
@@ -92,13 +93,17 @@ public class TexturePacker extends JFrame {
         constraints.gridy = 4;
         add(progressBar, constraints);
 
-        // Set app icon from PNG file
-        try {
-            Image icon = ImageIO.read(new File("icon.png")); // Provide path to your icon image file
-            setIconImage(icon);
-        } catch (Exception e) {
-            e.printStackTrace(); // Handle exception appropriately
-        }
+try {
+    InputStream iconStream = TexturePacker.class.getResourceAsStream("/icon.png");
+    if (iconStream != null) {
+        Image icon = ImageIO.read(iconStream);
+        setIconImage(icon);
+    } else {
+        System.err.println("Icon not found");
+    }
+} catch (IOException e) {
+    e.printStackTrace(); // Handle exception appropriately
+}
 
         setVisible(true);
     }
