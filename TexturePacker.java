@@ -4,10 +4,7 @@ import java.awt.Insets;
 import java.awt.Image;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -93,17 +90,17 @@ public class TexturePacker extends JFrame {
         constraints.gridy = 4;
         add(progressBar, constraints);
 
-try {
-    InputStream iconStream = TexturePacker.class.getResourceAsStream("/icon.png");
-    if (iconStream != null) {
-        Image icon = ImageIO.read(iconStream);
-        setIconImage(icon);
-    } else {
-        System.err.println("Icon not found");
-    }
-} catch (IOException e) {
-    e.printStackTrace(); // Handle exception appropriately
-}
+        try {
+            InputStream iconStream = TexturePacker.class.getResourceAsStream("/icon.png");
+            if (iconStream != null) {
+                Image icon = ImageIO.read(iconStream);
+                setIconImage(icon);
+            } else {
+                System.err.println("Icon not found");
+            }
+        } catch (IOException e) {
+            e.printStackTrace(); // Handle exception appropriately
+        }
 
         setVisible(true);
     }
@@ -124,7 +121,19 @@ try {
         if (selectedFolderValue != null && selectedDestinationValue != null) {
             String zipFilename = selectedDestinationValue + File.separator + "Textures.zip";
             compressButton.setEnabled(false);
-            new Thread(() -> compressFolder(selectedFolderValue, selectedDestinationValue, zipFilename)).start();
+            SwingWorker<Void, Integer> worker = new SwingWorker<>() {
+                @Override
+                protected Void doInBackground() throws Exception {
+                    compressFolder(selectedFolderValue, selectedDestinationValue, zipFilename);
+                    return null;
+                }
+
+                @Override
+                protected void done() {
+                    compressButton.setEnabled(true);
+                }
+            };
+            worker.execute();
         }
     }
 
@@ -157,8 +166,10 @@ try {
                 zipOutputStream.putNextEntry(zipEntry);
                 byte[] bytes = new byte[1024];
                 int length;
-                while ((length = ImageIO.createImageInputStream(file).read(bytes)) >= 0) {
-                    zipOutputStream.write(bytes, 0, length);
+                try (InputStream inputStream = new FileInputStream(file)) {
+                    while ((length = inputStream.read(bytes)) >= 0) {
+                        zipOutputStream.write(bytes, 0, length);
+                    }
                 }
                 zipOutputStream.closeEntry();
                 progress.incrementAndGet();
